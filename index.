@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tải video Facebook - Vercel</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 20px; }
+        .container { background: white; border-radius: 12px; box-shadow: 0 2px 20px rgba(0,0,0,0.1); padding: 30px; width: 100%; max-width: 600px; }
+        h1 { color: #1a1a1a; margin-bottom: 10px; font-size: 24px; display: flex; align-items: center; gap: 10px; }
+        .fb-icon { background: #1877f2; color: white; width: 35px; height: 35px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 20px; }
+        .subtitle { color: #65676b; margin-bottom: 20px; font-size: 14px; }
+        .input-group { display: flex; gap: 10px; margin-bottom: 15px; }
+        input[type="text"] { flex: 1; padding: 12px 15px; border: 2px solid #e4e6eb; border-radius: 8px; font-size: 14px; outline: none; transition: border 0.3s; }
+        input[type="text"]:focus { border-color: #1877f2; }
+        button { padding: 12px 25px; background: #1877f2; color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.3s; white-space: nowrap; }
+        button:hover { background: #166fe5; transform: translateY(-1px); }
+        button:disabled { background: #ccc; cursor: not-allowed; transform: none; }
+        .loading { display: none; text-align: center; padding: 20px; color: #65676b; }
+        .spinner { border: 3px solid #f0f0f0; border-top: 3px solid #1877f2; border-radius: 50%; width: 30px; height: 30px; animation: spin 0.8s linear infinite; margin: 0 auto 10px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .result { display: none; margin-top: 15px; padding: 15px; background: #f0f7ff; border: 1px solid #bee5eb; border-radius: 8px; }
+        .result.show { display: block; }
+        .video-info { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .quality-badge { background: #42b72a; color: white; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+        .quality-badge.sd { background: #f7b928; }
+        .download-btn { display: inline-block; padding: 10px 20px; background: #42b72a; color: white; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 14px; transition: background 0.3s; }
+        .download-btn:hover { background: #36a420; }
+        .error { display: none; margin-top: 15px; padding: 12px; background: #ffebee; border: 1px solid #ffcdd2; border-radius: 8px; color: #c62828; font-size: 14px; }
+        .error.show { display: block; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1><span class="fb-icon">f</span>Tải video Facebook</h1>
+        <p class="subtitle">Dán link video Facebook công khai để lấy link tải xuống</p>
+
+        <div class="input-group">
+            <input type="text" id="videoUrl" placeholder="https://www.facebook.com/...">
+            <button onclick="downloadVideo()" id="downloadBtn">📥 Tải video</button>
+        </div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Đang xử lý video trên máy chủ...</p>
+        </div>
+
+        <div class="error" id="error"></div>
+
+        <div class="result" id="result">
+            <div class="video-info">
+                <span>✅ Đã tìm thấy video</span>
+                <span class="quality-badge" id="quality">HD</span>
+            </div>
+            <a href="#" class="download-btn" id="downloadLink" download>📥 Tải video xuống</a>
+        </div>
+    </div>
+
+    <script>
+        async function downloadVideo() {
+            const url = document.getElementById('videoUrl').value.trim();
+            const loading = document.getElementById('loading');
+            const result = document.getElementById('result');
+            const error = document.getElementById('error');
+            const downloadBtn = document.getElementById('downloadBtn');
+            const downloadLink = document.getElementById('downloadLink');
+            const qualityBadge = document.getElementById('quality');
+
+            result.classList.remove('show');
+            error.classList.remove('show');
+            
+            if (!url || !url.includes('facebook.com')) {
+                showError('Vui lòng nhập link Facebook hợp lệ!');
+                return;
+            }
+
+            loading.style.display = 'block';
+            downloadBtn.disabled = true;
+
+            try {
+                // Gọi tới Vercel API
+                const response = await fetch(`/api/download?url=${encodeURIComponent(url)}`);
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Lỗi hệ thống!');
+                }
+
+                downloadLink.href = data.url;
+                qualityBadge.textContent = data.quality;
+                qualityBadge.className = 'quality-badge' + (data.quality === 'SD' ? ' sd' : '');
+                
+                result.classList.add('show');
+
+            } catch (err) {
+                showError(err.message);
+            } finally {
+                loading.style.display = 'none';
+                downloadBtn.disabled = false;
+            }
+        }
+
+        function showError(message) {
+            const error = document.getElementById('error');
+            error.innerHTML = '❌ ' + message;
+            error.classList.add('show');
+        }
+
+        document.getElementById('videoUrl').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') downloadVideo();
+        });
+    </script>
+</body>
+</html>
