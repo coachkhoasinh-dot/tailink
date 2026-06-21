@@ -1,4 +1,5 @@
 export default async function handler(req, res) {
+  // Cho phép trình duyệt gọi API mà không bị lỗi bảo mật CORS
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
 
@@ -9,45 +10,31 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Thêm 'redirect: follow' để đuổi theo các link dạng /share/
-    const response = await fetch(videoUrl, {
-      redirect: 'follow',
+    // Sử dụng Cobalt API: Chuyên gia "vượt rào" mọi nền tảng
+    const response = await fetch('https://api.cobalt.tools/api/json', {
+      method: 'POST',
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept-Language': 'vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7',
-        'Sec-Fetch-Mode': 'navigate'
-      }
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      },
+      body: JSON.stringify({
+        url: videoUrl,
+        filenamePattern: "classic" // Giữ tên file gọn gàng
+      })
     });
     
-    const html = await response.text();
+    const data = await response.json();
 
-    // Cách 1: Tìm trong chuỗi dữ liệu JSON
-    const hdMatch = html.match(/"browser_native_hd_url":"([^"]+)"/) || html.match(/"playable_url_quality_hd":"([^"]+)"/);
-    const sdMatch = html.match(/"browser_native_sd_url":"([^"]+)"/) || html.match(/"playable_url":"([^"]+)"/);
-    
-    // Cách 2 (Dự phòng): Tìm trong thẻ Meta OG (Rất hiệu quả với server bị chặn nhẹ)
-    const metaMatch = html.match(/<meta\s+property="og:video"\s+content="([^"]+)"/i);
-
-    let finalUrl = null;
-    let quality = 'SD';
-
-    if (hdMatch && hdMatch[1]) {
-        finalUrl = hdMatch[1].replace(/\\\//g, '/').replace(/\\u0025/g, '%');
-        quality = 'HD';
-    } else if (sdMatch && sdMatch[1]) {
-        finalUrl = sdMatch[1].replace(/\\\//g, '/').replace(/\\u0025/g, '%');
-    } else if (metaMatch && metaMatch[1]) {
-        // Giải mã các ký tự HTML (ví dụ &amp; thành &)
-        finalUrl = metaMatch[1].replace(/&amp;/g, '&');
+    // Kiểm tra nếu API báo lỗi hoặc không trả về link
+    if (data.status === 'error' || !data.url) {
+       return res.status(404).json({ error: 'Video riêng tư hoặc API giải mã đang bảo trì. Hãy thử link khác!' });
     }
 
-    if (!finalUrl) {
-       return res.status(404).json({ error: 'Không thể trích xuất. Video có thể bị giới hạn hoặc FB đang chặn IP quét.' });
-    }
-
-    return res.status(200).json({ url: finalUrl, quality: quality });
+    // Trả kết quả thành công về cho trang web của bạn
+    return res.status(200).json({ url: data.url, quality: 'HD' });
 
   } catch (error) {
-    return res.status(500).json({ error: 'Lỗi máy chủ khi quét dữ liệu' });
+    return res.status(500).json({ error: 'Máy chủ giải mã đang quá tải, vui lòng thử lại sau!' });
   }
 }
