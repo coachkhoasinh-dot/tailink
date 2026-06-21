@@ -1,6 +1,5 @@
 // api/download.js
 // Backend serverless function (chạy trên Vercel)
-// Nhiệm vụ: nhận link video Facebook công khai -> trả về link tải HD/SD
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Credentials', true);
@@ -34,7 +33,7 @@ export default async function handler(req, res) {
 
     if (!result.url) {
       return res.status(404).json({
-        error: 'Không tìm thấy link video. Có thể Facebook đã đổi cấu trúc trang, hoặc video không công khai.'
+        error: 'Không tìm thấy link. Có thể Facebook đã đổi cấu trúc trang, hoặc đây là video riêng tư/group kín.'
       });
     }
 
@@ -51,6 +50,7 @@ export default async function handler(req, res) {
 function isValidFacebookUrl(url) {
   try {
     const u = new URL(url);
+    // Bổ sung thêm share/v/ để hợp lệ hóa các link rút gọn
     return /(^|\.)facebook\.com$|(^|\.)fb\.watch$/.test(u.hostname);
   } catch {
     return false;
@@ -58,14 +58,15 @@ function isValidFacebookUrl(url) {
 }
 
 async function fetchFacebookPage(videoUrl) {
-  // mbasic.facebook.com thường trả về HTML đơn giản, ít JS che giấu hơn
-  // nên nhiều khi dễ parse hơn bản www. — dùng làm fallback nếu cần
-  const response = await fetch(videoUrl, {
+  // Thay thế www thành mbasic để lấy giao diện HTML đơn giản, dễ cào dữ liệu Reels hơn
+  const targetUrl = videoUrl.replace('www.facebook.com', 'mbasic.facebook.com');
+
+  const response = await fetch(targetUrl, {
     headers: {
       'User-Agent':
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
       'Accept-Language': 'vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7',
-      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
     },
     redirect: 'follow'
   });
@@ -78,7 +79,6 @@ async function fetchFacebookPage(videoUrl) {
 }
 
 function isLoginWall(html) {
-  // Các dấu hiệu cho thấy Facebook đang yêu cầu đăng nhập
   return (
     html.includes('login_form') ||
     html.includes('"loggedOut":true') ||
@@ -87,19 +87,20 @@ function isLoginWall(html) {
 }
 
 function extractVideoLinks(html) {
-  // Danh sách các pattern regex được thử theo thứ tự ưu tiên.
-  // Facebook hay đổi cấu trúc -> khi web ngừng hoạt động, đây là nơi cần
-  // cập nhật pattern mới (xem ghi chú README đi kèm).
+  // Bổ sung pattern video_url cho Reels
   const hdPatterns = [
     /"browser_native_hd_url":"([^"]+)"/,
     /"playable_url_quality_hd":"([^"]+)"/,
-    /hd_src:"([^"]+)"/
+    /hd_src:"([^"]+)"/,
+    /"video_url":"([^"]+)"/
   ];
 
+  // Bổ sung quét thẻ Meta OG - Vũ khí bắt link siêu chuẩn cho Reels
   const sdPatterns = [
     /"browser_native_sd_url":"([^"]+)"/,
     /"playable_url":"([^"]+)"/,
-    /sd_src:"([^"]+)"/
+    /sd_src:"([^"]+)"/,
+    /<meta\s+property="og:video"\s+content="([^"]+)"/i
   ];
 
   const hdUrl = tryPatterns(html, hdPatterns);
@@ -126,8 +127,10 @@ function tryPatterns(html, patterns) {
 }
 
 function cleanUrl(rawUrl) {
+  // Bổ sung thêm \u0026 để giải mã ký tự & trong link Reels
   return rawUrl
     .replace(/\\\//g, '/')
     .replace(/\\u0025/g, '%')
+    .replace(/\\u0026/g, '&')
     .replace(/&amp;/g, '&');
 }
